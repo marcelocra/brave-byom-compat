@@ -27,10 +27,12 @@ The project consists of:
 - `openaiToClaudeRequest()` - Converts OpenAI chat format to `Anthropic.MessageCreateParams`
   - Handles multiple system messages by concatenating them
   - Validates and clamps temperature/top_p parameters
-  - Maps OpenAI model names to Claude model IDs
+  - Uses exact model names from Leo input (no mapping)
+  - Validates messages are non-empty strings
+  - Does NOT include `stream` parameter (handled by SDK)
 - `claudeToOpenaiResponse()` - Converts `Anthropic.Message` to OpenAI format
 - `claudeStreamToOpenaiChunk()` - Handles `Anthropic.MessageStreamEvent` to OpenAI chunks
-- `mapOpenAIModelToClaude()` - Comprehensive model mapping including Claude Sonnet 4
+- `mapClaudeStopReason()` - Maps Claude stop reasons to OpenAI finish reasons
 
 ### ClaudeClient (`claude-client.ts`) 
 - Clean wrapper around official `Anthropic` client
@@ -89,9 +91,11 @@ Set environment variables:
 ### Request Translation
 - OpenAI `messages` array → Claude `messages` + separate `system` field using `Anthropic.MessageParam[]`
 - Multiple system messages automatically concatenated
-- OpenAI model names mapped to official Claude model IDs
+- **No model mapping** - Uses exact model name from Leo input
+- Empty messages filtered out for clean requests
 - Parameters like `temperature`, `top_p`, `max_tokens` validated and passed through to `Anthropic.MessageCreateParams`
 - `stop` sequences converted to Claude `stop_sequences`
+- **Critical**: Does NOT include `stream` parameter (SDK handles streaming internally)
 
 ### Response Translation  
 - `Anthropic.Message.content` blocks filtered and flattened to single OpenAI message content

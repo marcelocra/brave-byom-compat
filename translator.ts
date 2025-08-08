@@ -19,7 +19,6 @@ export class MessageTranslator {
       temperature,
       top_p,
       stop,
-      stream,
     } = openaiRequest;
 
     // Separate system messages from user/assistant messages
@@ -38,14 +37,15 @@ export class MessageTranslator {
       }
     }
 
-    // Map OpenAI model names to Claude model names
-    const claudeModel = this.mapOpenAIModelToClaude(model);
+    // Validate messages are not empty
+    const validClaudeMessages = claudeMessages.filter(msg => 
+      msg.content && typeof msg.content === 'string' && msg.content.trim().length > 0
+    );
 
     const claudeRequest: Anthropic.MessageCreateParams = {
-      model: claudeModel,
+      model: model, // Use exact model name from Leo input
       max_tokens,
-      messages: claudeMessages,
-      stream: stream || false,
+      messages: validClaudeMessages,
     };
 
     if (systemMessage) {
@@ -172,34 +172,6 @@ export class MessageTranslator {
     }
   }
 
-  /**
-   * Map OpenAI model names to Claude model names
-   */
-  private static mapOpenAIModelToClaude(openaiModel: string): string {
-    // Map common OpenAI model names to Claude equivalents
-    const modelMap: Record<string, string> = {
-      "gpt-4": "claude-3-5-sonnet-20241022",
-      "gpt-4-turbo": "claude-3-5-sonnet-20241022",
-      "gpt-4o": "claude-3-5-sonnet-20241022",
-      "gpt-3.5-turbo": "claude-3-5-haiku-20241022",
-      "claude-3-5-sonnet": "claude-3-5-sonnet-20241022",
-      "claude-3-5-haiku": "claude-3-5-haiku-20241022",
-      "claude-3-opus": "claude-3-opus-20240229",
-      "claude-3-sonnet": "claude-3-sonnet-20240229",
-      "claude-3-haiku": "claude-3-haiku-20240307",
-      // Add the new Sonnet 4 model
-      "claude-sonnet-4": "claude-sonnet-4-20250514",
-      "claude-4": "claude-sonnet-4-20250514",
-    };
-
-    // If the model is already a Claude model, return as-is
-    if (openaiModel.startsWith("claude-")) {
-      return openaiModel;
-    }
-
-    // Otherwise, map or default to latest Sonnet
-    return modelMap[openaiModel] || "claude-3-5-sonnet-20241022";
-  }
 
   /**
    * Map Claude stop reasons to OpenAI finish reasons
