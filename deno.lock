@@ -1,0 +1,18 @@
+{
+  "version": "5",
+  "specifiers": {
+    "npm:@anthropic-ai/sdk@*": "0.58.0",
+    "npm:@anthropic-ai/sdk@0.58": "0.58.0"
+  },
+  "npm": {
+    "@anthropic-ai/sdk@0.58.0": {
+      "integrity": "sha512-wF8w+LB0AlKVLYUQho0nbK0uDv0K5Cgb92dbh8213t4roilnQ9Tm6zndheIaUxQdoEAeb0uoOT+GkkoIkqD8+A==",
+      "bin": true
+    }
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:@anthropic-ai/sdk@0.58"
+    ]
+  }
+}

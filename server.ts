@@ -1,6 +1,6 @@
 #!/usr/bin/env -S deno run --allow-net --allow-env
 
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "npm:@anthropic-ai/sdk";
 import { ClaudeClient } from "./claude-client.ts";
 import { MessageTranslator } from "./translator.ts";
 import { OpenAIChatRequest } from "./types.ts";
@@ -41,7 +41,7 @@ function extractApiKey(request: Request): string | null {
   if (!authHeader) return null;
 
   const match = authHeader.match(/^Bearer\s+(.+)$/);
-  return match ? match[1] : null;
+  return match?.[1] ?? null;
 }
 
 /**
@@ -50,21 +50,53 @@ function extractApiKey(request: Request): string | null {
 async function handleChatCompletions(request: Request): Promise<Response> {
   try {
     // Validate API key (optional - you can implement your own auth logic)
-    const providedKey = extractApiKey(request);
-    
+    const _providedKey = extractApiKey(request);
+
     // Parse request body
     const openaiRequest: OpenAIChatRequest = await request.json();
-    
+
     // Validate required fields
     if (!openaiRequest.messages || !Array.isArray(openaiRequest.messages)) {
       return new Response(
-        JSON.stringify({ error: "messages field is required and must be an array" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({
+          error: "messages field is required and must be an array",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Validate messages array is not empty
+    if (openaiRequest.messages.length === 0) {
+      return new Response(
+        JSON.stringify({
+          error: "messages array cannot be empty",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    // Validate model field
+    if (!openaiRequest.model || typeof openaiRequest.model !== "string") {
+      return new Response(
+        JSON.stringify({
+          error: "model field is required and must be a string",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
       );
     }
 
     // Convert to Claude format
-    const claudeRequest = MessageTranslator.openaiToClaudeRequest(openaiRequest);
+    const claudeRequest =
+      MessageTranslator.openaiToClaudeRequest(openaiRequest);
 
     // Handle streaming vs non-streaming
     if (openaiRequest.stream) {
@@ -75,10 +107,13 @@ async function handleChatCompletions(request: Request): Promise<Response> {
   } catch (error) {
     console.error("Error handling chat completion:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : "Internal server error" 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Internal server error",
       }),
-      { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
     );
   }
 }
@@ -92,65 +127,87 @@ async function handleNonStreamingResponse(
 ): Promise<Response> {
   try {
     const claudeResponse = await claudeClient.createMessage(claudeRequest);
-    const openaiResponse = MessageTranslator.claudeToOpenaiResponse(claudeResponse, requestModel);
+    const openaiResponse = MessageTranslator.claudeToOpenaiResponse(
+      claudeResponse,
+      requestModel
+    );
 
     return new Response(JSON.stringify(openaiResponse), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   } catch (error) {
     console.error("Error in non-streaming response:", error);
-    throw error;
+
+    // Handle Anthropic SDK errors gracefully
+    if (error instanceof Error) {
+      return new Response(
+        JSON.stringify({
+          error: error.message,
+        }),
+        {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        error: "Internal server error",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
   }
 }
 
 /**
  * Handle streaming response
  */
-async function handleStreamingResponse(
+function handleStreamingResponse(
   claudeRequest: Anthropic.MessageCreateParams,
   requestModel: string
-): Promise<Response> {
-  try {
-    const messageId = `chatcmpl-${crypto.randomUUID()}`;
-    
-    const stream = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const event of claudeClient.createMessageStream(claudeRequest)) {
-            const chunk = MessageTranslator.claudeStreamToOpenaiChunk(
-              event,
-              requestModel,
-              messageId
-            );
+): Response {
+  const messageId = `chatcmpl-${crypto.randomUUID()}`;
 
-            if (chunk) {
-              const data = `data: ${JSON.stringify(chunk)}\n\n`;
-              controller.enqueue(new TextEncoder().encode(data));
-            }
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        for await (const event of claudeClient.createMessageStream(
+          claudeRequest
+        )) {
+          const chunk = MessageTranslator.claudeStreamToOpenaiChunk(
+            event,
+            requestModel,
+            messageId
+          );
+
+          if (chunk) {
+            const data = `data: ${JSON.stringify(chunk)}\n\n`;
+            controller.enqueue(new TextEncoder().encode(data));
           }
-
-          // Send final chunk
-          controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-          controller.close();
-        } catch (error) {
-          console.error("Error in streaming response:", error);
-          controller.error(error);
         }
-      },
-    });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        ...corsHeaders,
-      },
-    });
-  } catch (error) {
-    console.error("Error setting up streaming response:", error);
-    throw error;
-  }
+        // Send final chunk
+        controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+        controller.close();
+      } catch (error) {
+        console.error("Error in streaming response:", error);
+        controller.error(error);
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      ...corsHeaders,
+    },
+  });
 }
 
 /**
@@ -174,7 +231,7 @@ async function handler(request: Request): Promise<Response> {
 
   // Chat completions endpoint
   if (url.pathname === "/v1/chat/completions" && method === "POST") {
-    return handleChatCompletions(request);
+    return await handleChatCompletions(request);
   }
 
   // Models endpoint (optional)
@@ -216,7 +273,9 @@ async function handler(request: Request): Promise<Response> {
 }
 
 // Start server using Deno.serve (modern approach)
-console.log(`🚀 Claude-to-OpenAI compatibility server starting on port ${PORT}`);
+console.log(
+  `🚀 Claude-to-OpenAI compatibility server starting on port ${PORT}`
+);
 console.log(`📡 Endpoint: http://localhost:${PORT}/v1/chat/completions`);
 console.log(`🔑 Using Claude API key: ${CLAUDE_API_KEY.substring(0, 10)}...`);
 

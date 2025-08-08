@@ -1,4 +1,4 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Anthropic from "npm:@anthropic-ai/sdk";
 import {
   OpenAIChatRequest,
   OpenAIChatResponse,
@@ -9,8 +9,18 @@ export class MessageTranslator {
   /**
    * Convert OpenAI request format to Claude API format
    */
-  static openaiToClaudeRequest(openaiRequest: OpenAIChatRequest): Anthropic.MessageCreateParams {
-    const { messages, model, max_tokens = 4096, temperature, top_p, stop, stream } = openaiRequest;
+  static openaiToClaudeRequest(
+    openaiRequest: OpenAIChatRequest
+  ): Anthropic.MessageCreateParams {
+    const {
+      messages,
+      model,
+      max_tokens = 4096,
+      temperature,
+      top_p,
+      stop,
+      stream,
+    } = openaiRequest;
 
     // Separate system messages from user/assistant messages
     let systemMessage = "";
@@ -18,7 +28,8 @@ export class MessageTranslator {
 
     for (const message of messages) {
       if (message.role === "system") {
-        systemMessage = message.content;
+        // Combine multiple system messages if present
+        systemMessage = systemMessage ? `${systemMessage}\n\n${message.content}` : message.content;
       } else if (message.role === "user" || message.role === "assistant") {
         claudeMessages.push({
           role: message.role,
@@ -59,10 +70,13 @@ export class MessageTranslator {
   /**
    * Convert Claude response to OpenAI response format
    */
-  static claudeToOpenaiResponse(claudeResponse: Anthropic.Message, requestModel: string): OpenAIChatResponse {
+  static claudeToOpenaiResponse(
+    claudeResponse: Anthropic.Message,
+    requestModel: string
+  ): OpenAIChatResponse {
     const content = claudeResponse.content
-      .filter(block => block.type === "text")
-      .map(block => (block as Anthropic.TextBlock).text)
+      .filter((block) => block.type === "text")
+      .map((block) => (block as Anthropic.TextBlock).text)
       .join("");
 
     const finishReason = this.mapClaudeStopReason(claudeResponse.stop_reason);
@@ -85,7 +99,9 @@ export class MessageTranslator {
       usage: {
         prompt_tokens: claudeResponse.usage.input_tokens,
         completion_tokens: claudeResponse.usage.output_tokens,
-        total_tokens: claudeResponse.usage.input_tokens + claudeResponse.usage.output_tokens,
+        total_tokens:
+          claudeResponse.usage.input_tokens +
+          claudeResponse.usage.output_tokens,
       },
     };
   }

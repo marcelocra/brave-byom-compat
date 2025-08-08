@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "exports": "./server.ts",
   "tasks": {
-    "start": "deno run --allow-net --allow-env server.ts",
-    "dev": "deno run --allow-net --allow-env --watch server.ts",
+    "start": "deno run --allow-net --allow-env --env server.ts",
+    "dev": "deno run --allow-net --allow-env --env --watch server.ts",
     "test": "deno test --allow-net --allow-env"
   },
   "imports": {
