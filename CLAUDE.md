@@ -9,8 +9,9 @@ This is a production-ready Claude API to OpenAI API compatibility layer designed
 ## Architecture
 
 The project consists of:
+
 - `types.ts` - TypeScript interfaces for OpenAI API compatibility formats
-- `translator.ts` - Core translation logic between OpenAI and Claude API formats  
+- `translator.ts` - Core translation logic between OpenAI and Claude API formats
 - `claude-client.ts` - Wrapper around official Anthropic SDK client
 - `server.ts` - Deno HTTP server implementing OpenAI-compatible endpoints
 - `deno.json` - Deno configuration with official Anthropic SDK dependency
@@ -24,6 +25,7 @@ The project consists of:
 ## Key Components
 
 ### MessageTranslator (`translator.ts`)
+
 - `openaiToClaudeRequest()` - Converts OpenAI chat format to `Anthropic.MessageCreateParams`
   - Handles multiple system messages by concatenating them
   - Validates and clamps temperature/top_p parameters
@@ -34,12 +36,14 @@ The project consists of:
 - `claudeStreamToOpenaiChunk()` - Handles `Anthropic.MessageStreamEvent` to OpenAI chunks
 - `mapClaudeStopReason()` - Maps Claude stop reasons to OpenAI finish reasons
 
-### ClaudeClient (`claude-client.ts`) 
+### ClaudeClient (`claude-client.ts`)
+
 - Clean wrapper around official `Anthropic` client
 - `createMessage()` - Non-streaming requests using `client.messages.create()` with `stream: false`
 - `createMessageStream()` - Streaming requests using `client.messages.stream()` with async generators
 
 ### Server (`server.ts`)
+
 - **Endpoints**:
   - `/v1/chat/completions` (POST) - Main chat completions endpoint with full validation
   - `/v1/models` (GET) - Lists available Claude models
@@ -60,7 +64,7 @@ deno check --all *.ts
 # Start development server with auto-reload
 deno task dev
 
-# Start production server  
+# Start production server
 deno task start
 
 # Run with custom port
@@ -74,6 +78,7 @@ cp .env.example .env
 ## Configuration
 
 Set environment variables:
+
 - `CLAUDE_API_KEY` (required) - Your Anthropic Claude API key from console.anthropic.com
 - `PORT` (optional) - Server port, defaults to 8000
 
@@ -81,7 +86,7 @@ Set environment variables:
 
 1. Run the server: `deno task start`
 2. In Brave Settings > Leo > Bring your own model:
-   - **Label**: "Claude"  
+   - **Label**: "Claude"
    - **Model request name**: "claude-sonnet-4-20250514" (recommended) or other Claude model
    - **Server endpoint**: "http://localhost:8000/v1/chat/completions"
    - **API Key**: Leave blank (authentication handled via environment variable)
@@ -89,6 +94,7 @@ Set environment variables:
 ## API Translation Details
 
 ### Request Translation
+
 - OpenAI `messages` array → Claude `messages` + separate `system` field using `Anthropic.MessageParam[]`
 - Multiple system messages automatically concatenated
 - **No model mapping** - Uses exact model name from Leo input
@@ -97,19 +103,21 @@ Set environment variables:
 - `stop` sequences converted to Claude `stop_sequences`
 - **Critical**: Does NOT include `stream` parameter (SDK handles streaming internally)
 
-### Response Translation  
+### Response Translation
+
 - `Anthropic.Message.content` blocks filtered and flattened to single OpenAI message content
 - `Anthropic.Message.usage` tokens mapped to OpenAI format (input/output → prompt/completion)
 - Claude stop reasons mapped to OpenAI finish reasons
 - `Anthropic.MessageStreamEvent` converted to OpenAI SSE chunk format with proper event handling
 
-### Model Mapping
-- `gpt-4*` models → `claude-3-5-sonnet-20241022`
-- `gpt-3.5-turbo` → `claude-3-5-haiku-20241022`
-- `claude-4` / `claude-sonnet-4` → `claude-sonnet-4-20250514`
-- Claude model names passed through unchanged for maximum flexibility
+### Model Support
 
-### Available Models
+- **No Mapping**: Uses exact model name provided by Brave Leo BYOM
+- **Direct Pass-through**: Any valid Claude model name works (claude-sonnet-4-20250514, claude-3-5-sonnet-20241022, etc.)
+- **Flexibility**: Supports any current or future Claude models without code changes
+
+### Common Claude Models
+
 - `claude-sonnet-4-20250514` (latest, most capable model)
 - `claude-3-5-sonnet-20241022` (balanced performance and speed)
 - `claude-3-5-haiku-20241022` (fast, cost-effective)
@@ -117,9 +125,11 @@ Set environment variables:
 ## Request Validation
 
 The server performs comprehensive validation:
+
 - **Required fields**: `messages` (non-empty array), `model` (string)
-- **Message format**: Proper role/content structure
+- **Message format**: Proper role/content structure, filters empty messages
 - **Parameter bounds**: Temperature and top_p clamped to [0,1]
+- **Content validation**: Ensures message content is non-empty string
 - **Error responses**: Proper HTTP status codes with JSON error messages
 
 ## Error Handling
@@ -135,7 +145,7 @@ The server performs comprehensive validation:
 ```
 1. Brave Leo → POST /v1/chat/completions (OpenAI format)
 2. Server validates request (messages, model, parameters)
-3. MessageTranslator converts OpenAI → Claude format  
+3. MessageTranslator converts OpenAI → Claude format
 4. ClaudeClient calls official Anthropic SDK
 5. Response translated Claude → OpenAI format
 6. Returned to Brave Leo in expected format
@@ -151,6 +161,7 @@ The server performs comprehensive validation:
 ## Why Not OpenAI SDK?
 
 The OpenAI SDK is not used because:
+
 - **Purpose**: We translate FROM OpenAI format TO Claude API, not OpenAI → OpenAI
 - **Direction**: OpenAI SDK calls OpenAI's API, but we need Claude's API
 - **Efficiency**: We handle OpenAI request parsing directly - SDK would add unnecessary overhead
