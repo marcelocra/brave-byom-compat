@@ -28,11 +28,12 @@ export class MessageTranslator {
     for (const message of messages) {
       if (message.role === "system") {
         // Combine multiple system messages if present
-        systemMessage = systemMessage ? `${systemMessage}\n\n${message.content}` : message.content;
+        const trimmedContent = message.content.trim();
+        systemMessage = systemMessage ? `${systemMessage}\n\n${trimmedContent}` : trimmedContent;
       } else if (message.role === "user" || message.role === "assistant") {
         claudeMessages.push({
           role: message.role,
-          content: message.content,
+          content: message.content.trim(),
         });
       }
     }
@@ -77,7 +78,8 @@ export class MessageTranslator {
     const content = claudeResponse.content
       .filter((block) => block.type === "text")
       .map((block) => (block as Anthropic.TextBlock).text)
-      .join("");
+      .join("")
+      .trim();
 
     const finishReason = this.mapClaudeStopReason(claudeResponse.stop_reason);
 

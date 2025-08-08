@@ -30,9 +30,9 @@ The project consists of:
   - Handles multiple system messages by concatenating them
   - Validates and clamps temperature/top_p parameters
   - Uses exact model names from Leo input (no mapping)
-  - Validates messages are non-empty strings
+  - Validates messages are non-empty strings and trims whitespace
   - Does NOT include `stream` parameter (handled by SDK)
-- `claudeToOpenaiResponse()` - Converts `Anthropic.Message` to OpenAI format
+- `claudeToOpenaiResponse()` - Converts `Anthropic.Message` to OpenAI format with content trimming
 - `claudeStreamToOpenaiChunk()` - Handles `Anthropic.MessageStreamEvent` to OpenAI chunks
 - `mapClaudeStopReason()` - Maps Claude stop reasons to OpenAI finish reasons
 
@@ -73,6 +73,12 @@ PORT=3000 deno task start
 # Environment setup
 cp .env.example .env
 # Edit .env with your CLAUDE_API_KEY
+
+# Enable debug logging
+DEBUG=true deno task start
+
+# Debug with development server
+DEBUG=true deno task dev
 ```
 
 ## Configuration
@@ -81,6 +87,7 @@ Set environment variables:
 
 - `CLAUDE_API_KEY` (required) - Your Anthropic Claude API key from console.anthropic.com
 - `PORT` (optional) - Server port, defaults to 8000
+- `DEBUG` (optional) - Set to "true" to enable detailed request/response logging for debugging
 
 ## Brave Leo BYOM Setup
 
@@ -129,7 +136,7 @@ The server performs comprehensive validation:
 - **Required fields**: `messages` (non-empty array), `model` (string)
 - **Message format**: Proper role/content structure, filters empty messages
 - **Parameter bounds**: Temperature and top_p clamped to [0,1]
-- **Content validation**: Ensures message content is non-empty string
+- **Content validation**: Ensures message content is non-empty string with whitespace trimming
 - **Error responses**: Proper HTTP status codes with JSON error messages
 
 ## Error Handling
@@ -166,3 +173,46 @@ The OpenAI SDK is not used because:
 - **Direction**: OpenAI SDK calls OpenAI's API, but we need Claude's API
 - **Efficiency**: We handle OpenAI request parsing directly - SDK would add unnecessary overhead
 - **Architecture**: Clean separation of concerns with manual type handling
+
+## Development History
+
+### Initial Implementation
+
+- Built with custom HTTP client for Claude API
+- Implemented basic OpenAI-compatible endpoints
+- Added model mapping between OpenAI and Claude models
+- Basic request/response translation
+
+### Major Refactor: Official SDK Integration
+
+- **Replaced custom HTTP client** with official `@anthropic-ai/sdk` (v0.58.0)
+- **Enhanced type safety** using official SDK types instead of custom interfaces
+- **Improved error handling** with SDK's built-in retry logic and connection pooling
+- **Maintained OpenAI compatibility** while leveraging SDK benefits
+
+### Critical Bug Fixes
+
+User reported streaming errors after initial 2 messages worked:
+
+**Root Cause**: Including `stream: stream || false` parameter in Claude API requests when using the official SDK
+
+- The SDK's `.stream()` method handles streaming internally
+- Manual stream parameter caused API conflicts
+
+**Fixes Applied**:
+
+1. **Removed stream parameter** from `translator.ts:openaiToClaudeRequest()`
+2. **Removed model mapping** per user preference for direct pass-through
+3. **Added content validation** to filter empty messages and trailing whitespace
+4. **Enhanced error handling** throughout the request pipeline
+
+**Result**: Full streaming and non-streaming functionality working with production-ready error handling
+
+### Current State
+
+- ✅ Production-ready with comprehensive validation
+- ✅ Direct model pass-through (no mapping)
+- ✅ Official Anthropic SDK integration
+- ✅ Streaming and non-streaming support
+- ✅ CORS and browser compatibility
+- ✅ Robust error handling and TypeScript safety

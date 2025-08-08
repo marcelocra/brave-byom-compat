@@ -8,6 +8,7 @@ import { OpenAIChatRequest } from "./types.ts";
 // Configuration
 const PORT = parseInt(Deno.env.get("PORT") || "8000");
 const CLAUDE_API_KEY = Deno.env.get("CLAUDE_API_KEY") || "";
+const DEBUG = Deno.env.get("DEBUG") === "true";
 
 if (!CLAUDE_API_KEY) {
   console.error("Error: CLAUDE_API_KEY environment variable is required");
@@ -94,9 +95,19 @@ async function handleChatCompletions(request: Request): Promise<Response> {
       );
     }
 
+    if (DEBUG) {
+      console.log("=== INCOMING OPENAI REQUEST ===");
+      console.log(JSON.stringify(openaiRequest, null, 2));
+    }
+
     // Convert to Claude format
     const claudeRequest =
       MessageTranslator.openaiToClaudeRequest(openaiRequest);
+
+    if (DEBUG) {
+      console.log("=== CONVERTED CLAUDE REQUEST ===");
+      console.log(JSON.stringify(claudeRequest, null, 2));
+    }
 
     // Handle streaming vs non-streaming
     if (openaiRequest.stream) {
@@ -127,10 +138,21 @@ async function handleNonStreamingResponse(
 ): Promise<Response> {
   try {
     const claudeResponse = await claudeClient.createMessage(claudeRequest);
+
+    if (DEBUG) {
+      console.log("=== CLAUDE RESPONSE ===");
+      console.log(JSON.stringify(claudeResponse, null, 2));
+    }
+
     const openaiResponse = MessageTranslator.claudeToOpenaiResponse(
       claudeResponse,
       requestModel
     );
+
+    if (DEBUG) {
+      console.log("=== FINAL OPENAI RESPONSE ===");
+      console.log(JSON.stringify(openaiResponse, null, 2));
+    }
 
     return new Response(JSON.stringify(openaiResponse), {
       headers: { "Content-Type": "application/json", ...corsHeaders },
